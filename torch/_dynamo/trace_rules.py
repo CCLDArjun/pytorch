@@ -3004,6 +3004,7 @@ def _builtin_function_ids() -> Dict[int, str]:
         {
             id(cast): "typing.cast",
             id(copy.deepcopy): "copy.deepcopy",
+            id(__build_class__): "builtins.__build_class__",
         }
     )
     return rv

@@ -807,9 +807,9 @@ class VariableBuilder:
         elif callable(value) and trace_rules.lookup_callable(value) is not None:
             if is_callable_allowed(value):
                 self.tx.output.has_user_defined_allowed_in_graph = True
-            return trace_rules.lookup_callable(value).create_with_source(
-                value, source=self.source
-            )
+            callable_ = trace_rules.lookup_callable(value)
+            ret = callable_.create_with_source(value, source=self.source)
+            return ret
         elif np and isinstance(value, np.number):
             return self.wrap_unspecialized_primitive(value)
         elif HFPretrainedConfigVariable.is_matching_object(value):

@@ -701,6 +701,7 @@ class BuiltinVariable(VariableTracker):
 
     @staticmethod
     def _make_handler(fn, arg_types: List[type], has_kwargs: bool):
+        # add implementation for __build_class__ here
         from .builder import SourcelessBuilder
         from .lazy import LazyVariableTracker
 
@@ -828,6 +829,36 @@ class BuiltinVariable(VariableTracker):
                         return builder(tx, res)
 
             handlers.append(constant_fold_handler)
+
+        if fn == __build_class__:
+            def build_class_handler(tx: "InstructionTranslator", args, kwargs):
+                const_args = args[1:] if len(args) > 1 else []
+                if check_unspec_or_constant_args(const_args, kwargs):
+                    #const_args = [x.as_python_constant() for x in const_args]
+                    #bc_args = list(itertools.chain([args[0].code.value], const_args))
+                    #bc_kwargs = {
+                    #    k: v.as_python_constant() for k, v in kwargs.items()
+                    #}
+
+                    bc_tracker = BuiltinVariable(__build_class__)
+                    print(fn)
+                    breakpoint()
+                    Translator = torch._dynamo.symbolic_convert.InliningInstructionTranslator
+                    cls_tracer = Translator(
+                        tx,
+                        args[0].get_code(),
+                        tx.symbolic_locals,
+                        tx.symbolic_globals,
+                        tx.symbolic_torch_function_state,
+                        {},
+                        args[0],
+                    )
+                    breakpoint()
+                    res = __build_class(*bc_args, **bc_kwargs)
+                    ret = builder(tx, res)
+                    return ret
+
+            handlers.append(build_class_handler)
 
         error_msg = f"builtin: {fn.__name__} {arg_types} {has_kwargs}"
         if len(handlers) == 0:

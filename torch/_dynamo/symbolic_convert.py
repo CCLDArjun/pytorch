@@ -562,11 +562,13 @@ def break_graph_if_unsupported(*, push):
     def decorator(inner_fn):
         @functools.wraps(inner_fn)
         def wrapper(self: "InstructionTranslatorBase", inst: Instruction):
-            speculation = self.speculate()
+            speculation = self.speculate() # use this to speculate in build class too
+                                           # investigate what self.speculate is doing :thonk:
             if speculation.failed:
                 assert speculation.reason is not None
                 return handle_graph_break(self, inst, speculation.reason)
             try:
+                breakpoint()
                 return inner_fn(self, inst)
             except Unsupported as excp:
                 if self.generic_context_manager_depth > 0:
@@ -817,7 +819,9 @@ class InstructionTranslatorBase(
             inner_fn = fn.fn
         if inner_fn and callable(inner_fn) and is_forbidden(inner_fn):
             raise AssertionError(f"Attempt to trace forbidden callable {inner_fn}")
-        self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+        breakpoint()
+        res = fn.call_function(self, args, kwargs)
+        self.push(res)  # type: ignore[arg-type]
 
     def inline_user_function_return(self, fn, args, kwargs):
         """
@@ -1044,6 +1048,9 @@ class InstructionTranslatorBase(
     def LOAD_FAST(self, inst):
         self._load_fast(inst.argval)
 
+    def LOAD_BUILD_CLASS(self, inst):
+        self.load_builtin_from_argval("__build_class__")
+
     def LOAD_DEREF(self, inst):
         assert inst.argval in self.cell_and_freevars()
 
@@ -1252,10 +1259,13 @@ class InstructionTranslatorBase(
                 self.output.name_of_builtins_dict_key_in_fglobals
             )
             var_source = GetItemSource(builtins_source, argval)
-            self.push(VariableBuilder(self, var_source)(val))
+            variable_builder = VariableBuilder(self, var_source)
+            variable_tracker = variable_builder(val)
+            self.push(variable_tracker)
         else:
             assert is_builtin_constant(val)
-            self.push(ConstantVariable.create(value=val))
+            _my_builtin = ConstantVariable.create(value=val)
+            self.push(_my_builtin)
 
     def load_builtin(self, inst):
         self.load_builtin_from_argval(inst.argval)
