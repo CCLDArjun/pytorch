@@ -568,7 +568,6 @@ def break_graph_if_unsupported(*, push):
                 assert speculation.reason is not None
                 return handle_graph_break(self, inst, speculation.reason)
             try:
-                breakpoint()
                 return inner_fn(self, inst)
             except Unsupported as excp:
                 if self.generic_context_manager_depth > 0:
@@ -705,6 +704,7 @@ class BytecodeDistpatchTableMeta(type):
         super().__init__(name, bases, dct)
 
         def _missing(opname, *args):
+            breakpoint()
             unimplemented(f"missing: {opname}")
 
         dispatch_table = {
@@ -819,7 +819,6 @@ class InstructionTranslatorBase(
             inner_fn = fn.fn
         if inner_fn and callable(inner_fn) and is_forbidden(inner_fn):
             raise AssertionError(f"Attempt to trace forbidden callable {inner_fn}")
-        breakpoint()
         res = fn.call_function(self, args, kwargs)
         self.push(res)  # type: ignore[arg-type]
 
@@ -1067,6 +1066,10 @@ class InstructionTranslatorBase(
         self.symbolic_locals[name] = loaded_vt
 
     def STORE_FAST(self, inst):
+        breakpoint()
+        self._store_fast(inst.argval)
+
+    def STORE_NAME(self, inst):
         self._store_fast(inst.argval)
 
     def DELETE_FAST(self, inst):
@@ -1088,6 +1091,15 @@ class InstructionTranslatorBase(
 
     def LOAD_CONST(self, inst):
         self.push(self._load_const(inst))
+
+    def _load_name(self, inst):
+        breakpoint()
+        try:
+            self._load_fast(inst.argval)
+        except Unsupported as e:
+            if e.msg != "undefined LOAD_FAST":
+                log.debug(f"LOAD_FAST EXCEPTION OF {e.msg}")
+            self._load_global(inst)
 
     def _load_global(self, inst):
         name = inst.argval
@@ -1123,6 +1135,13 @@ class InstructionTranslatorBase(
         if sys.version_info >= (3, 11) and sys.version_info < (3, 13) and inst.arg % 2:
             self.PUSH_NULL(inst)
         self._load_global(inst)
+        if sys.version_info >= (3, 13) and inst.arg % 2:
+            self.PUSH_NULL(inst)
+
+    def LOAD_NAME(self, inst):
+        if sys.version_info >= (3, 11) and sys.version_info < (3, 13) and inst.arg % 2:
+            self.PUSH_NULL(inst)
+        self._load_name(inst)
         if sys.version_info >= (3, 13) and inst.arg % 2:
             self.PUSH_NULL(inst)
 
@@ -3151,7 +3170,7 @@ class InliningInstructionTranslator(InstructionTranslatorBase):
                 mutable_local=MutableLocal(),
             )
         else:
-            return tracer.symbolic_result
+            return tracer.symbolic_result # return what we need
 
     def __init__(
         self,
@@ -3304,6 +3323,7 @@ class InliningInstructionTranslator(InstructionTranslatorBase):
         if self.output.global_scope is self.f_globals:
             super()._load_global(inst)
         else:
+            # TODO(arjun): see whats going on here
             name = inst.argval
 
             _, fglobals_vt, global_source = self.get_globals_source_and_value(name)

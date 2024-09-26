@@ -843,16 +843,18 @@ class BuiltinVariable(VariableTracker):
                     bc_tracker = BuiltinVariable(__build_class__)
                     print(fn)
                     breakpoint()
-                    Translator = torch._dynamo.symbolic_convert.InliningInstructionTranslator
-                    cls_tracer = Translator(
-                        tx,
-                        args[0].get_code(),
-                        tx.symbolic_locals,
-                        tx.symbolic_globals,
-                        tx.symbolic_torch_function_state,
-                        {},
-                        args[0],
-                    )
+                    ret = tx.inline_user_function_return(args[0], [], {})
+                    #Translator = torch._dynamo.symbolic_convert.InliningInstructionTranslator
+                    #cls_tracer = Translator(
+                    #    tx,
+                    #    args[0].get_code(),
+                    #    tx.symbolic_locals,
+                    #    tx.symbolic_globals,
+                    #    tx.symbolic_torch_function_state,
+                    #    {},
+                    #    args[0],
+                    #)
+
                     breakpoint()
                     res = __build_class(*bc_args, **bc_kwargs)
                     ret = builder(tx, res)
